@@ -30,7 +30,12 @@ class Category(models.Model):
         ordering = ['name']
 
     def __str__(self):
-        return self.name
+        full_path = [self.name]
+        parent = self.parent
+        while parent is not None:
+            full_path.append(parent.name)
+            parent = parent.parent
+        return " → ".join(full_path[::-1])
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -165,7 +170,7 @@ class Course(models.Model):
         ]
 
     def __str__(self):
-        return self.title
+        return f"{self.title} – {self.instructor.username}"
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -212,7 +217,7 @@ class Section(models.Model):
         unique_together = [['course', 'order']]
 
     def __str__(self):
-        return f"{self.course.title} - {self.title}"
+        return f"{self.course.title} / فصل {self.order}: {self.title}"
 
 
 class Lesson(models.Model):
@@ -279,7 +284,7 @@ class Lesson(models.Model):
         unique_together = [['section', 'order']]
 
     def __str__(self):
-        return f"{self.section.title} - {self.title}"
+        return f"{self.section.course.title} / {self.section.title} / درس {self.order}: {self.title}"
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -359,7 +364,8 @@ class Enrollment(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.student.get_full_name()} - {self.course.title}"
+        return f"{self.student.username} → {self.course.title} ({self.status})"
+
 
 
 class LessonProgress(models.Model):
@@ -407,7 +413,8 @@ class LessonProgress(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.enrollment.student.get_full_name()} - {self.lesson.title}"
+        status = "تمام شده" if self.is_completed else f"{self.progress_percentage}%"
+        return f"{self.student.username} – {self.lesson.title} ({status})"
 
 
 class Review(models.Model):
