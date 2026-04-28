@@ -88,7 +88,7 @@ class Course(models.Model):
         null=True,
         verbose_name='تصویر شاخص'
     )
-    preview_video = models.URLField(blank=True, verbose_name='ویدیو معرفی')
+    preview_video = models.FileField(upload_to='course_previews/', null=True, blank=True)
     
     # قیمت‌گذاری
     price = models.DecimalField(
@@ -414,7 +414,7 @@ class LessonProgress(models.Model):
 
     def __str__(self):
         status = "تمام شده" if self.is_completed else f"{self.progress_percentage}%"
-        return f"{self.student.username} – {self.lesson.title} ({status})"
+        return f"{self.enrollment.student.username} – {self.lesson.title} ({status})"
 
 
 class Review(models.Model):

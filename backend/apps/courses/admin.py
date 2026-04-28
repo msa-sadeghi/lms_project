@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import Category, Course, Section, Lesson, Enrollment, LessonProgress, Review
-
+from django.utils.html import format_html
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -28,16 +28,71 @@ class ReviewInline(admin.TabularInline):
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
+    @admin.display(description="Thumbnail")
+    def thumbnail_preview(self, obj):
+        if obj.thumbnail:
+            return format_html(
+                '<img src="{}" width="60" height="40" style="object-fit:cover;border-radius:4px;" />',
+                obj.thumbnail.url
+            )
+        return "—"
+    
+    @admin.display(description="Status")
+    def status_badge(self, obj):
+        colors = {
+            "draft": "gray",
+            "review": "orange",
+            "published": "green",
+            "archived": "red"
+        }
+
+        color = colors.get(obj.status, "black")
+
+        return format_html(
+            '<span style="color:white;background:{};padding:4px 8px;border-radius:6px;font-size:12px;">{}</span>',
+            color,
+            obj.status.upper()
+        )
+
+    @admin.display(description="Students")
+    def student_count(self, obj):
+        return obj.enrollments.count()
+
+    @admin.display(description="Sections")
+    def section_count(self, obj):
+        return obj.sections.count()
+
+    @admin.display(description="Lessons")
+    def lesson_count(self, obj):
+        return Lesson.objects.filter(section__course=obj).count()
+
+    @admin.display(description="Rating")
+    def rating_stars(self, obj):
+        rating = obj.average_rating
+        stars = "★" * int(round(rating))
+        empty = "☆" * (5 - int(round(rating)))
+
+        return format_html(
+            '<span style="color:gold;font-size:14px;">{}{}</span>',
+            stars,
+            empty
+        )
+    def enrollment_students(self, obj):
+        return ", ".join([e.student.username for e in obj.enrollments.all()])
     list_display = [
+        'thumbnail_preview',
         'title',
         'instructor',
         'category',
-        'status',
-        'difficulty',
-        'price_display',
-        'enrolled_count',
-        'rating_display',
-        'created_at'
+        'price',
+        'status_badge',
+        'student_count',
+        'section_count',
+        'lesson_count',
+        'created_at',
+        'enrollment_students',
+        'rating_stars',
+        # 'is_approved',
     ]
     list_filter = ['status', 'difficulty', 'is_featured', 'category', 'created_at']
     search_fields = ['title', 'description', 'instructor__email']
@@ -154,6 +209,7 @@ class EnrollmentAdmin(admin.ModelAdmin):
         'student_name',
         'course',
         'status',
+        'progress_bar',
         'progress_display',
         'payment_display',
         'enrolled_at'
@@ -163,8 +219,27 @@ class EnrollmentAdmin(admin.ModelAdmin):
     readonly_fields = ['enrolled_at', 'completed_at', 'progress_percentage']
     date_hierarchy = 'enrolled_at'
 
+    @admin.display(description="Progress")
+    def progress_bar(self, obj):
+
+        percent = obj.progress_percentage
+
+        return format_html(
+            '''
+            <div style="width:100px;background:#eee;border-radius:5px;">
+                <div style="width:{}%;background:#28a745;height:10px;border-radius:5px;"></div>
+            </div>
+            <small>{}%</small>
+            ''',
+            percent,
+            percent
+        )
+
+
     def student_name(self, obj):
-        return obj.student.get_full_name()
+        if obj.enrollment:
+            return obj.enrollment.student.get_full_name()
+        return "-"
     student_name.short_description = 'دانشجو'
 
     def progress_display(self, obj):
@@ -202,7 +277,9 @@ class LessonProgressAdmin(admin.ModelAdmin):
     readonly_fields = ['started_at', 'updated_at', 'completed_at']
 
     def student_name(self, obj):
-        return obj.enrollment.student.get_full_name()
+        if obj.enrollment:
+            return obj.enrollment.student.get_full_name()
+        return "-"
     student_name.short_description = 'دانشجو'
 
     def watch_progress(self, obj):
