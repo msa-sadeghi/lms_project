@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from django.db.models import Count
 from .models import Category, Course, Section, Lesson, Enrollment, LessonProgress, Review
-from django.utils.html import format_html
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -10,7 +10,6 @@ class CategoryAdmin(admin.ModelAdmin):
     search_fields = ['name', 'description']
     prepopulated_fields = {'slug': ('name',)}
     ordering = ['name']
-
 
 
 class SectionInline(admin.TabularInline):
@@ -28,6 +27,45 @@ class ReviewInline(admin.TabularInline):
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
+    list_display = [
+        'thumbnail_preview',
+        'title',
+        'instructor',
+        'category',
+        'price',
+        'status_badge',
+        'student_count',
+        'section_count',
+        'lesson_count',
+        'created_at',
+        'enrollment_students',
+        'rating_stars',
+        # 'is_approved',
+    ]
+    list_filter = ['status', 'difficulty', 'is_featured', 'category', 'created_at']
+    search_fields = ['title', 'description', 'instructor__email']
+    prepopulated_fields = {'slug': ('title',)}
+    readonly_fields = ['created_at', 'updated_at', 'enrolled_count', 'rating_display']
+    inlines = [SectionInline, ReviewInline]
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related("instructor", "category").annotate(
+            students_total=Count("enrollments", distinct = True),
+            sections_total=Count("sections", distinct = True),
+            lessons_total=Count("sections__lessons", distinct = True),
+            )
+    @admin.display(description="Students")
+    def student_count(self, obj):
+        return obj.students_total
+
+    @admin.display(description="Sections")
+    def section_count(self, obj):
+        return obj.lessons_total
+
+    @admin.display(description="Lessons")
+    def lesson_count(self, obj):
+        return Lesson.objects.filter(section__course=obj).count()
     @admin.display(description="Thumbnail")
     def thumbnail_preview(self, obj):
         if obj.thumbnail:
@@ -54,17 +92,6 @@ class CourseAdmin(admin.ModelAdmin):
             obj.status.upper()
         )
 
-    @admin.display(description="Students")
-    def student_count(self, obj):
-        return obj.enrollments.count()
-
-    @admin.display(description="Sections")
-    def section_count(self, obj):
-        return obj.sections.count()
-
-    @admin.display(description="Lessons")
-    def lesson_count(self, obj):
-        return Lesson.objects.filter(section__course=obj).count()
 
     @admin.display(description="Rating")
     def rating_stars(self, obj):
@@ -79,26 +106,6 @@ class CourseAdmin(admin.ModelAdmin):
         )
     def enrollment_students(self, obj):
         return ", ".join([e.student.username for e in obj.enrollments.all()])
-    list_display = [
-        'thumbnail_preview',
-        'title',
-        'instructor',
-        'category',
-        'price',
-        'status_badge',
-        'student_count',
-        'section_count',
-        'lesson_count',
-        'created_at',
-        'enrollment_students',
-        'rating_stars',
-        # 'is_approved',
-    ]
-    list_filter = ['status', 'difficulty', 'is_featured', 'category', 'created_at']
-    search_fields = ['title', 'description', 'instructor__email']
-    prepopulated_fields = {'slug': ('title',)}
-    readonly_fields = ['created_at', 'updated_at', 'enrolled_count', 'rating_display']
-    inlines = [SectionInline, ReviewInline]
     
     fieldsets = (
         ('اطلاعات اصلی', {
