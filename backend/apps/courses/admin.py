@@ -32,7 +32,7 @@ class CourseAdmin(admin.ModelAdmin):
         'title',
         'instructor',
         'category',
-        'price',
+        'price_display',
         'status_badge',
         'student_count',
         'section_count',
@@ -61,11 +61,11 @@ class CourseAdmin(admin.ModelAdmin):
 
     @admin.display(description="Sections")
     def section_count(self, obj):
-        return obj.lessons_total
+        return obj.sections_total
 
     @admin.display(description="Lessons")
     def lesson_count(self, obj):
-        return Lesson.objects.filter(section__course=obj).count()
+        return obj.lessons_total
     @admin.display(description="Thumbnail")
     def thumbnail_preview(self, obj):
         if obj.thumbnail:
@@ -105,7 +105,13 @@ class CourseAdmin(admin.ModelAdmin):
             empty
         )
     def enrollment_students(self, obj):
-        return ", ".join([e.student.username for e in obj.enrollments.all()])
+        students = obj.enrollments.select_related("student")[:5]
+        names = [e.student.username for e in students]
+        
+        if obj.students_total > 5:
+            names.append(f"... +{obj.students_total - 5}")
+        
+        return ", ".join(names)
     
     fieldsets = (
         ('اطلاعات اصلی', {
@@ -181,11 +187,14 @@ class SectionAdmin(admin.ModelAdmin):
     search_fields = ['title', 'course__title']
     inlines = [LessonInline]
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.annotate()
     def lesson_count(self, obj):
         return obj.lessons.count()
     lesson_count.short_description = 'تعداد درس'
 
-
+j
 @admin.register(Lesson)
 class LessonAdmin(admin.ModelAdmin):
     list_display = [
@@ -245,7 +254,7 @@ class EnrollmentAdmin(admin.ModelAdmin):
 
     def student_name(self, obj):
         if obj.enrollment:
-            return obj.enrollment.student.get_full_name()
+            return obj.student.get_full_name()
         return "-"
     student_name.short_description = 'دانشجو'
 
